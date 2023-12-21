@@ -168,7 +168,7 @@ def grab_weather_info():
         print("url_::",url_)
         
         driver.get(url_)       
-        driver.implicitly_wait(3)    
+        driver.implicitly_wait(3)  
 
         elems = driver.find_elements(By.XPATH,"/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]")# first instance of a zipcode search 
         for e in elems:
