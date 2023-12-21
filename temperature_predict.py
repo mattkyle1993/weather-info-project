@@ -10,6 +10,7 @@ import glob
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
 import pandas as pd
 from datetime import datetime
 import time
@@ -32,6 +33,7 @@ import servicemanager
 import socket
 from uszipcode import SearchEngine, SimpleZipcode, ComprehensiveZipcode
 from selenium.webdriver import ActionChains
+from selenium.common.exceptions import TimeoutException
 
 import time
 from datetime import datetime
@@ -108,7 +110,6 @@ def get_zipcodes(kc=True,):
         driver.implicitly_wait(1) 
         zip_list = []
         for i in range(72):
-
             if i > 0:
                 zip_count = i
                 xpath = f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a"
@@ -140,77 +141,141 @@ def get_zipcodes(kc=True,):
                     zip_list.append(res)        
     return zip_list
 
+def close_ads(driver):
+    """
+    Source for this:
+    https://stackoverflow.com/questions/41460265/hide-remove-ads-with-selenium-python
+    """
+    all_iframes = driver.find_elements(By.TAG_NAME,"iframe")
+    if len(all_iframes) > 0:
+        print("Ad Found\n")
+        driver.execute_script("""
+            var elems = document.getElementsByTagName("iframe"); 
+            for(var i = 0, max = elems.length; i < max; i++)
+                {
+                    elems[i].hidden=true;
+                }
+                            """)
+        print('Total Ads: ' + str(len(all_iframes)))
+    else:
+        print('No frames found')
+    return driver
+
 def grab_weather_info():
 
-    kc_zips = get_zipcodes(kc=False)
-    
-    for zip in kc_zips:
+    SHRT_SLEEP = 3
+    LONG_SLEEP = 7
 
+    kc_zips = get_zipcodes(kc=False)
+    ct = 0
+    for zip in kc_zips:
         XPTHS = [
-            "/html/body/div[1]/div[7]/div[1]/div[1]/div[2]/div[3]/div[3]/div[2]", # wind speed
-            "/html/body/div[1]/div[7]/div[1]/div[1]/div[4]/div[2]/div[2]/div[1]/p[3]/span", # perciptiation percentage
-            "/html/body/div[1]/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div/div", # temperature in F
-            "/html/body/div[1]/div[7]/div[1]/div[1]/div[2]/div[3]/div[4]/div[2]", # humidity
+            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[3]/div[2]", # wind speed
+            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[10]/div[2]", # cloud ceiling
+            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[6]/div[2]", # dew point
+            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div/div",# temperature in F
+            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[4]/div[2]", # humidity
+            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[7]/div[2]" # air pressure
+            # "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]" # whats_on
+            "/html/body/div/div[7]/div[1]/div[1]/div[4]/div[2]/div[2]/div[1]/p[4]/span", # day_precip_chance
+            "/html/body/div/div[7]/div[1]/div[1]/div[5]/div[2]/div[2]/div[1]/p[3]/span" # night_precip_chance
             # "/html/body/div[1]/main/div[2]/main/div[1]/section/div[2]/div[2]/details[1]/div/div[2]/ul/li[2]/div/span[2]" # UV Index
                 ]
-        driver = get_selenium_driver()
-        driver.get("https://www.accuweather.com") 
-        driver.implicitly_wait(3)
-        action = ActionChains(driver)
-
-        search_element = driver.find_elements(By.XPATH, "/html/body/div[1]/div[1]/div[3]/div/div[1]/div[1]/form/input") 
-        # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
-    
-        for s in search_element:
-            action.move_to_element(s).click().send_keys(f"{zip}").perform()      
+        if ct == 0:
+            # if ct < 1:
+            driver = get_selenium_driver()
+            try:
+                driver.set_page_load_timeout(LONG_SLEEP)
+                driver.get("https://www.accuweather.com") 
+                time.sleep(SHRT_SLEEP)
+                driver = close_ads(driver)
+                time.sleep(SHRT_SLEEP)
+            except TimeoutException as ex:
+                isrunning = 0 # can be used later when this project is at a sophisticated level
+                print("Exception has been thrown. " + str(ex))
+                driver.close()
+                break
+            search_element = driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div[3]/div/div[1]/div[1]/form/input") 
+            # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
+            time.sleep(SHRT_SLEEP)
+            search_element.send_keys(f"{zip}") 
+            time.sleep(SHRT_SLEEP)
+            search_element.send_keys(Keys.ENTER)
+        if ct > 0: # shorten the algorithm 
+            driver.set_page_load_timeout(LONG_SLEEP)
+            forecast_url_4_srch = driver.current_url
+            driver.get(forecast_url_4_srch) 
+            time.sleep(SHRT_SLEEP)
+            driver = close_ads(driver)
+            time.sleep(SHRT_SLEEP)
+            search_element = driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]/form/input") 
+            # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
+            time.sleep(SHRT_SLEEP)
+            search_element.send_keys(f"{zip}") 
+            time.sleep(SHRT_SLEEP)
+            search_element.send_keys(Keys.ENTER)
+        ct += 1
+        # "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]" # search bar for weather_forecast page
+        driver = close_ads(driver)
+        time.sleep(SHRT_SLEEP)
         url_ = driver.current_url
-        url_ = str(url_)
-        print("url_::",url_)
-        
-        driver.get(url_)       
-        driver.implicitly_wait(3)  
-
-        elems = driver.find_elements(By.XPATH,"/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]")# first instance of a zipcode search 
-        for e in elems:
-            e.click()
-            
         
         grabbed = [
             "wind_speed",
-            "perciptiation_percentage",
+            "cloud_ceiling",
+            "dew_point",
             "temperature_in_F",
             "humidity",
-            # "UV Index"
+            "air_pressure",
+            # "weather_conditions",
+            "day_precip_chance",
+            "night_precip_chance"
         ]
-        driver = get_selenium_driver()
-        driver.get(url__)
-        driver.implicitly_wait(1) # wait a few seconds for driver to catch up to the request
-
+        # time.sleep(30)
         weather_dict = {}
         weather_dict['zipcode'] = [zip]
-
-        idx = 0
+        
         print("working on zipcode::",zip)
-    
+
         try:
             city_name = zco(zip,)
         except:
             city_name = "failed_to_get_city_name"
         print("city name::", city_name)
         weather_dict['city'] = [city_name]
-        
+        if "search-locations" in url_:
+            time.sleep(SHRT_SLEEP)
+            srch_elmt = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]")
+            srch_elmt.click()
+        else:
+            driver.get(url=url_)
+        time.sleep(SHRT_SLEEP)
+        driver = close_ads(driver) # close ads
+        time.sleep(SHRT_SLEEP)
+        expand_details = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/a[1]/div[2]/span[2]/span") # click to expand details
+        expand_details.click()
+        time.sleep(SHRT_SLEEP)
+        driver = close_ads(driver) # close ads
+        time.sleep(SHRT_SLEEP)
+
+
+        idx = 0
         for X in XPTHS:
             # try:
             # if driver:
             elem = driver.find_elements(By.XPATH, X) 
-            for el in elem:
-                string = el.text
-                temp = re.findall(r'\d+', string)
-                res = list(map(int, temp))
-                print(f"{grabbed[idx]}::",res[0])
-                weather_dict[f'{grabbed[idx]}'] = [res]
-            idx += 1
+            if elem:
+                for el in elem:
+                    string = el.text
+                    temp = re.findall(r'\d+', string)
+                    res = list(map(int, temp))
+                    print(f"{grabbed[idx]}::",res[0])
+                    weather_dict[f'{grabbed[idx]}'] = [res]
+                idx += 1
+            else:
+                print("z")
             
+
         now = datetime.now()
         formatted_date = now.strftime("%m_%d_%Y_%H_%M_%S")
             
@@ -221,8 +286,9 @@ def grab_weather_info():
             weather_together = pd.concat([weather_old, weather_new], ignore_index=True)
             weather_together.to_csv("weather_data.csv",index=False)
         except:
-            weather_new.to_csv("weather_data.csv",index=False)        
-
+            weather_new.to_csv("weather_data.csv",index=False)   
+        time.sleep(SHRT_SLEEP)     
+        
 if __name__ == "__main__":
     # StartUpService()
     # minutes_to_sleep = 15
