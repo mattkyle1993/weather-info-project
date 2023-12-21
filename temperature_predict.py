@@ -102,46 +102,45 @@ def zco(x):
     city = search.by_zipcode(x).major_city
     return city if city else 'None'        
 
-def get_zipcodes(kc=True,):
+def get_zipcodes(kc=False,):
+    
+    xpaths = [
+        f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a",
+        f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
+    ]
+    zip_urls = [
+        "https://www.zip-codes.com/city/mo-kansas-city.asp",
+        "https://247wallst.com/special-report/2019/06/26/the-most-populated-zip-codes-in-america/"
+                ]
     
     if kc == True:
-        zip_url = "https://www.zip-codes.com/city/mo-kansas-city.asp"
-        driver = get_selenium_driver()
-        driver.get(zip_url)
-        driver.implicitly_wait(1) 
-        zip_list = []
-        for i in range(72):
-            if i > 0:
-                zip_count = i
-                xpath = f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a"
-                # elem = driver.find_elements(By.XPATH, xpath) 
-                elem = find_the_elements(xpath,driver)
-                for el in elem:
-                    string = el.text
-                    temp = re.findall(r'\d+', string)
-                    res = list(map(int, temp))
-                    res = f"{res[0]}"
-                    # print(res)
-                    zip_list.append(res)
+        zip_url = zip_urls[0]
+        xpath = xpaths[0]
+        NUM_ZIPS = 72
     else:
-        zip_url = "https://247wallst.com/special-report/2019/06/26/the-most-populated-zip-codes-in-america/"
-        driver = get_selenium_driver()
-        driver.get(zip_url)
-        driver.implicitly_wait(1) 
-        zip_list = []
-        for i in range(50):
-            if i > 0:
-                zip_count = i
-                xpath = f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
-                # elem = driver.find_elements(By.XPATH, xpath) 
-                elem = find_the_elements(xpath,driver)
-                for el in elem:
-                    string = el.text
-                    temp = re.findall(r'\d+', string)
-                    res = list(map(int, temp))
-                    res = f"{res[0]}"
-                    # print(res)
-                    zip_list.append(res)        
+        zip_url = zip_urls[1]
+        xpath = xpaths[1]
+        NUM_ZIPS = 50
+    
+    driver = get_selenium_driver()
+    driver.get(zip_url)
+    driver.implicitly_wait(1) 
+    
+    zip_list = []
+    for i in range(NUM_ZIPS):
+        print("i here", [i])
+        if i > 0:
+            zip_count = i
+            # xpath = f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
+            # elem = driver.find_elements(By.XPATH, xpath) 
+            elem = find_the_elements(xpath,driver)
+            for el in elem:
+                string = el.text
+                temp = re.findall(r'\d+', string)
+                res = list(map(int, temp))
+                res = f"{res[0]}"
+                # print(res)
+                zip_list.append(res)        
     return zip_list
 
 def find_the_elements(xpath,driver,elements = True,):
@@ -192,7 +191,7 @@ def grab_weather_info():
     SHRT_SLEEP = 3
     LONG_SLEEP = 7
 
-    kc_zips = get_zipcodes(kc=False)
+    kc_zips = get_zipcodes()
     ct = 0
     for zip in kc_zips:
         XPTHS = [
