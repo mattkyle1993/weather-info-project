@@ -34,6 +34,7 @@ import socket
 from uszipcode import SearchEngine, SimpleZipcode, ComprehensiveZipcode
 from selenium.webdriver import ActionChains
 from selenium.common.exceptions import TimeoutException
+    from selenium.common.exceptions import NoSuchElementException
 
 import time
 from datetime import datetime
@@ -113,7 +114,8 @@ def get_zipcodes(kc=True,):
             if i > 0:
                 zip_count = i
                 xpath = f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a"
-                elem = driver.find_elements(By.XPATH, xpath) 
+                # elem = driver.find_elements(By.XPATH, xpath) 
+                elem = find_the_elements(xpath,driver)
                 for el in elem:
                     string = el.text
                     temp = re.findall(r'\d+', string)
@@ -131,7 +133,8 @@ def get_zipcodes(kc=True,):
             if i > 0:
                 zip_count = i
                 xpath = f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
-                elem = driver.find_elements(By.XPATH, xpath) 
+                # elem = driver.find_elements(By.XPATH, xpath) 
+                elem = find_the_elements(xpath,driver)
                 for el in elem:
                     string = el.text
                     temp = re.findall(r'\d+', string)
@@ -141,25 +144,48 @@ def get_zipcodes(kc=True,):
                     zip_list.append(res)        
     return zip_list
 
-def close_ads(driver):
+def find_the_elements(xpath,driver,elements = True,):
+
     """
-    Source for this:
-    https://stackoverflow.com/questions/41460265/hide-remove-ads-with-selenium-python
+    https://stackoverflow.com/questions/42683692/python-selenium-keep-refreshing-until-item-found-chromedriver
     """
-    all_iframes = driver.find_elements(By.TAG_NAME,"iframe")
-    if len(all_iframes) > 0:
-        print("Ad Found\n")
-        driver.execute_script("""
-            var elems = document.getElementsByTagName("iframe"); 
-            for(var i = 0, max = elems.length; i < max; i++)
-                {
-                    elems[i].hidden=true;
-                }
-                            """)
-        print('Total Ads: ' + str(len(all_iframes)))
-    else:
-        print('No frames found')
-    return driver
+    
+    max_tries = 3
+
+    for t in range(max_tries):
+        element = ""
+        try:
+            if elements == True:
+                element = driver.find_elements(By.XPATH, xpath)
+                break                  # break out of the inner loop if we succeeded
+            else:
+                element = driver.find_element(By.XPATH, xpath)
+                break
+        except:
+            print("failed to load link. retrying..." if t < max_tries-1 else "giving up.")
+            exit()
+    return element, driver
+
+
+# def close_ads(driver):
+#     """
+#     Source for this:
+#     https://stackoverflow.com/questions/41460265/hide-remove-ads-with-selenium-python
+#     """
+#     all_iframes = driver.find_elements(By.TAG_NAME,"iframe")
+#     if len(all_iframes) > 0:
+#         print("Ad Found\n")
+#         driver.execute_script("""
+#             var elems = document.getElementsByTagName("iframe"); 
+#             for(var i = 0, max = elems.length; i < max; i++)
+#                 {
+#                     elems[i].hidden=true;
+#                 }
+#                             """)
+#         print('Total Ads: ' + str(len(all_iframes)))
+#     else:
+#         print('No frames found')
+#     return driver
 
 def grab_weather_info():
 
@@ -188,14 +214,15 @@ def grab_weather_info():
                 driver.set_page_load_timeout(LONG_SLEEP)
                 driver.get("https://www.accuweather.com") 
                 time.sleep(SHRT_SLEEP)
-                driver = close_ads(driver)
-                time.sleep(SHRT_SLEEP)
+                # driver = close_ads(driver)
+                # time.sleep(SHRT_SLEEP)
             except TimeoutException as ex:
                 isrunning = 0 # can be used later when this project is at a sophisticated level
                 print("Exception has been thrown. " + str(ex))
                 driver.close()
                 break
-            search_element = driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div[3]/div/div[1]/div[1]/form/input") 
+            # search_element = driver.find_element(By.XPATH, ) 
+            search_element, driver = find_the_elements("/html/body/div[1]/div[1]/div[3]/div/div[1]/div[1]/form/input",driver,elements=False)
             # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
             time.sleep(SHRT_SLEEP)
             search_element.send_keys(f"{zip}") 
@@ -206,9 +233,10 @@ def grab_weather_info():
             forecast_url_4_srch = driver.current_url
             driver.get(forecast_url_4_srch) 
             time.sleep(SHRT_SLEEP)
-            driver = close_ads(driver)
-            time.sleep(SHRT_SLEEP)
-            search_element = driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]/form/input") 
+            # driver = close_ads(driver)
+            # time.sleep(SHRT_SLEEP)
+            # search_element = driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]/form/input") 
+            search_element = find_the_elements("/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]/form/input",driver,elements=False)
             # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
             time.sleep(SHRT_SLEEP)
             search_element.send_keys(f"{zip}") 
@@ -216,8 +244,8 @@ def grab_weather_info():
             search_element.send_keys(Keys.ENTER)
         ct += 1
         # "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]" # search bar for weather_forecast page
-        driver = close_ads(driver)
-        time.sleep(SHRT_SLEEP)
+        # driver = close_ads(driver)
+        # time.sleep(SHRT_SLEEP)
         url_ = driver.current_url
         
         grabbed = [
@@ -245,18 +273,20 @@ def grab_weather_info():
         weather_dict['city'] = [city_name]
         if "search-locations" in url_:
             time.sleep(SHRT_SLEEP)
-            srch_elmt = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]")
+            srch_elmt, driver = find_the_elements("/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]",driver,elements=False)
+            # srch_elmt = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]")
             srch_elmt.click()
         else:
             driver.get(url=url_)
         time.sleep(SHRT_SLEEP)
-        driver = close_ads(driver) # close ads
-        time.sleep(SHRT_SLEEP)
-        expand_details = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/a[1]/div[2]/span[2]/span") # click to expand details
+        # driver = close_ads(driver) # close ads
+        # time.sleep(SHRT_SLEEP)
+        # expand_details = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/a[1]/div[2]/span[2]/span") # click to expand details
+        expand_details, driver = find_the_elements("/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]",driver,elements=False)
         expand_details.click()
         time.sleep(SHRT_SLEEP)
-        driver = close_ads(driver) # close ads
-        time.sleep(SHRT_SLEEP)
+        # driver = close_ads(driver) # close ads
+        # time.sleep(SHRT_SLEEP)
 
 
         idx = 0
