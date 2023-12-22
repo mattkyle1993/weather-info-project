@@ -34,7 +34,7 @@ import socket
 from uszipcode import SearchEngine, SimpleZipcode, ComprehensiveZipcode
 from selenium.webdriver import ActionChains
 from selenium.common.exceptions import TimeoutException
-    from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException
 
 import time
 from datetime import datetime
@@ -83,6 +83,58 @@ def StartUpService():
 
 WEBDRIVER_PATH = "C:\\Users\mattk\Desktop\streaming_data_experiment\chromedriver_win32\chromedriver.exe"
 
+def keep_retrying(zip_list,driver,max_retry=3,):
+    failed_zip = []
+    for zip in zip_list:
+        # if grab_weather_info(zip,driver) != True:
+        a = 0
+        if a == 0:
+            answer = grab_weather_info(zip,driver)
+            if answer == True:
+                pass
+            else:
+                a = 1
+        if a == 1:
+            print("this zip failed, sending back for retry:",zip)
+            failed_zip.append(zip)
+    # Retry the failed strings
+    for retry_zip in failed_zip:
+        retry = 0
+        while retry <= max_retry:
+            retry += 1
+            if grab_weather_info(retry_zip,driver):
+                failed_zip.remove(retry_zip)
+    print("number of failed zips:",len(failed_zip))
+
+def find_the_elements(xpath,driver,elements = True,max_tries=3,sleep_seconds=0):
+
+    """
+    https://stackoverflow.com/questions/42683692/python-selenium-keep-refreshing-until-item-found-chromedriver
+    """
+        
+    # max_tries = 3
+
+    for t in range(max_tries):
+        element = ""
+        try:
+            if elements == True:
+                element = driver.find_elements(By.XPATH, xpath)
+                time.sleep(sleep_seconds)
+                # break                  # break out of the inner loop if we succeeded
+            else:
+                element = driver.find_element(By.XPATH, xpath)
+                time.sleep(sleep_seconds)
+                # break
+        except:
+            if t < max_tries-1:
+                print("failed to load link. retrying...")
+            else:
+                print('giving up')
+                # quit()
+            
+    return element, driver
+
+
 def get_selenium_driver():
     """
     returns webdriver so selenium can be implemented more easily
@@ -94,6 +146,7 @@ def get_selenium_driver():
     options.add_argument('--ignore-ssl-errors')
     # driver = webdriver.Chrome(chrome_options=options)
     driver = webdriver.Chrome(service=service, options=options)    
+    driver.maximize_window()
     return driver
 
 
@@ -105,8 +158,8 @@ def zco(x):
 def get_zipcodes(kc=False,):
     
     xpaths = [
-        f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a",
-        f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
+        "/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a",
+        "/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
     ]
     zip_urls = [
         "https://www.zip-codes.com/city/mo-kansas-city.asp",
@@ -115,25 +168,35 @@ def get_zipcodes(kc=False,):
     
     if kc == True:
         zip_url = zip_urls[0]
-        xpath = xpaths[0]
+        # xpath = xpaths[0]
         NUM_ZIPS = 72
     else:
         zip_url = zip_urls[1]
-        xpath = xpaths[1]
+        # xpath = xpaths[1]
         NUM_ZIPS = 50
     
     driver = get_selenium_driver()
-    driver.get(zip_url)
+    # driver.get(zip_url)
+    driver = try_except_get(driver,zip_url)
+    drivr = [driver]
+    for d in drivr:
+        if d == None:
+            break
     driver.implicitly_wait(1) 
     
     zip_list = []
     for i in range(NUM_ZIPS):
-        print("i here", [i])
+        # print("i here", [i])
         if i > 0:
-            zip_count = i
+            if kc == False:
+                xpath= f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{i}]/td[2]"
+            else:
+                xpath = f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{i}]/td[1]/a"
+            # zip_count = i
             # xpath = f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
+            xpath = xpath.format(zip_count=i)
             # elem = driver.find_elements(By.XPATH, xpath) 
-            elem = find_the_elements(xpath,driver)
+            elem, driver = find_the_elements(xpath,driver,elements=True)
             for el in elem:
                 string = el.text
                 temp = re.findall(r'\d+', string)
@@ -141,30 +204,16 @@ def get_zipcodes(kc=False,):
                 res = f"{res[0]}"
                 # print(res)
                 zip_list.append(res)        
-    return zip_list
+    # print(zip_list)
+    return zip_list, driver
 
-def find_the_elements(xpath,driver,elements = True,):
-
-    """
-    https://stackoverflow.com/questions/42683692/python-selenium-keep-refreshing-until-item-found-chromedriver
-    """
-    
-    max_tries = 3
-
-    for t in range(max_tries):
-        element = ""
-        try:
-            if elements == True:
-                element = driver.find_elements(By.XPATH, xpath)
-                break                  # break out of the inner loop if we succeeded
-            else:
-                element = driver.find_element(By.XPATH, xpath)
-                break
-        except:
-            print("failed to load link. retrying..." if t < max_tries-1 else "giving up.")
-            exit()
-    return element, driver
-
+def try_except_get(driver, url):
+    try:
+        driver.get(url)
+        return driver
+    except Exception as error:
+        print("ERROR::",Exception)
+        return None
 
 # def close_ads(driver):
 #     """
@@ -186,144 +235,127 @@ def find_the_elements(xpath,driver,elements = True,):
 #         print('No frames found')
 #     return driver
 
-def grab_weather_info():
+def grab_weather_info(zip,driver):
 
     SHRT_SLEEP = 3
-    LONG_SLEEP = 7
+    LONG_SLEEP = 5
 
-    kc_zips = get_zipcodes()
-    ct = 0
-    for zip in kc_zips:
-        XPTHS = [
-            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[3]/div[2]", # wind speed
-            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[10]/div[2]", # cloud ceiling
-            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[6]/div[2]", # dew point
-            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div/div",# temperature in F
-            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[4]/div[2]", # humidity
-            "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[7]/div[2]" # air pressure
-            # "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]" # whats_on
-            "/html/body/div/div[7]/div[1]/div[1]/div[4]/div[2]/div[2]/div[1]/p[4]/span", # day_precip_chance
-            "/html/body/div/div[7]/div[1]/div[1]/div[5]/div[2]/div[2]/div[1]/p[3]/span" # night_precip_chance
-            # "/html/body/div[1]/main/div[2]/main/div[1]/section/div[2]/div[2]/details[1]/div/div[2]/ul/li[2]/div/span[2]" # UV Index
-                ]
-        if ct == 0:
-            # if ct < 1:
-            driver = get_selenium_driver()
-            try:
-                driver.set_page_load_timeout(LONG_SLEEP)
-                driver.get("https://www.accuweather.com") 
-                time.sleep(SHRT_SLEEP)
-                # driver = close_ads(driver)
-                # time.sleep(SHRT_SLEEP)
-            except TimeoutException as ex:
-                isrunning = 0 # can be used later when this project is at a sophisticated level
-                print("Exception has been thrown. " + str(ex))
-                driver.close()
-                break
-            # search_element = driver.find_element(By.XPATH, ) 
-            search_element, driver = find_the_elements("/html/body/div[1]/div[1]/div[3]/div/div[1]/div[1]/form/input",driver,elements=False)
-            # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
-            time.sleep(SHRT_SLEEP)
-            search_element.send_keys(f"{zip}") 
-            time.sleep(SHRT_SLEEP)
-            search_element.send_keys(Keys.ENTER)
-        if ct > 0: # shorten the algorithm 
-            driver.set_page_load_timeout(LONG_SLEEP)
-            forecast_url_4_srch = driver.current_url
-            driver.get(forecast_url_4_srch) 
-            time.sleep(SHRT_SLEEP)
-            # driver = close_ads(driver)
-            # time.sleep(SHRT_SLEEP)
-            # search_element = driver.find_element(By.XPATH, "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]/form/input") 
-            search_element = find_the_elements("/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]/form/input",driver,elements=False)
-            # action.move_to_element(search_element).click().send_keys(f"{zip}").perform()        
-            time.sleep(SHRT_SLEEP)
-            search_element.send_keys(f"{zip}") 
-            time.sleep(SHRT_SLEEP)
-            search_element.send_keys(Keys.ENTER)
-        ct += 1
-        # "/html/body/div[1]/div[1]/div[2]/div/div/div/div[1]" # search bar for weather_forecast page
-        # driver = close_ads(driver)
-        # time.sleep(SHRT_SLEEP)
-        url_ = driver.current_url
-        
-        grabbed = [
-            "wind_speed",
-            "cloud_ceiling",
-            "dew_point",
-            "temperature_in_F",
-            "humidity",
-            "air_pressure",
-            # "weather_conditions",
-            "day_precip_chance",
-            "night_precip_chance"
-        ]
-        # time.sleep(30)
-        weather_dict = {}
-        weather_dict['zipcode'] = [zip]
-        
-        print("working on zipcode::",zip)
+    # kc_zips, driver = get_zipcodes()
+    # ct = 0
+    # for zip in kc_zips:
+    print("zip here::",zip)
+    XPTHS = [
+        "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[3]/div[2]", # wind speed
+        "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[10]/div[2]", # cloud ceiling
+        "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[6]/div[2]", # dew point
+        "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[1]/div/div",# temperature in F
+        "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[4]/div[2]", # humidity
+        "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[7]/div[2]" # air pressure
+        # "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[2]/div[1]/div[2]" # whats_on
+        # "/html/body/div[1]/div[7]/div[1]/div[1]/div[4]/div[2]/div[2]/div[1]/p[4]/span", # day_precip_chance
+        # "/html/body/div[1]/div[7]/div[1]/div[1]/div[5]/div[2]/div[2]/div[1]/p[3]/span" # night_precip_chance
+        # "/html/body/div[1]/main/div[2]/main/div[1]/section/div[2]/div[2]/details[1]/div/div[2]/ul/li[2]/div/span[2]" # UV Index
+            ]
+    
+    
+    forecast_url_4_srch="https://www.accuweather.com/en/search-locations?query={zipcode}"
 
-        try:
-            city_name = zco(zip,)
-        except:
-            city_name = "failed_to_get_city_name"
-        print("city name::", city_name)
-        weather_dict['city'] = [city_name]
-        if "search-locations" in url_:
-            time.sleep(SHRT_SLEEP)
-            srch_elmt, driver = find_the_elements("/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]",driver,elements=False)
-            # srch_elmt = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]")
-            srch_elmt.click()
-        else:
-            driver.get(url=url_)
-        time.sleep(SHRT_SLEEP)
-        # driver = close_ads(driver) # close ads
-        # time.sleep(SHRT_SLEEP)
-        # expand_details = driver.find_element(By.XPATH, "/html/body/div/div[7]/div[1]/div[1]/a[1]/div[2]/span[2]/span") # click to expand details
-        expand_details, driver = find_the_elements("/html/body/div/div[7]/div[1]/div[1]/div[2]/a[1]/p[1]",driver,elements=False)
+    driver = try_except_get(driver,forecast_url_4_srch.format(zipcode=zip))
+    drivr = [driver]
+    for d in drivr:
+        if d == None:
+            break
+    time.sleep(SHRT_SLEEP)
+    search_element, driver = find_the_elements("/html/body/div/div[6]/div[1]/div[1]/div[2]/a[1]",driver,elements=False)
+    
+    time.sleep(SHRT_SLEEP)
+    search_element.click()
+    time.sleep(LONG_SLEEP)
+    print("test 3")
+    
+    grabbed = [
+        "wind_speed",
+        "cloud_ceiling",
+        "dew_point",
+        "temperature_in_F",
+        "humidity",
+        "air_pressure",
+        # "weather_conditions",
+        # "day_precip_chance",
+        # "night_precip_chance"
+    ]
+    # time.sleep(30)
+    weather_dict = {}
+    weather_dict['zipcode'] = [zip]
+    
+    print("working on zipcode::",zip)
+
+    try:
+        city_name = zco(zip,)
+    except:
+        city_name = "failed_to_get_city_name"
+    print("city name::", city_name)
+    weather_dict['city'] = [city_name]
+    expand_details, driver = find_the_elements("/html/body/div[1]/div[7]/div[1]/div[1]/a[1]/div[2]/span[2]/span",driver,elements=False)
+    
+    print("test 2")
+    try:
         expand_details.click()
-        time.sleep(SHRT_SLEEP)
-        # driver = close_ads(driver) # close ads
-        # time.sleep(SHRT_SLEEP)
+    except:
+        for e in expand_details:
+            e.click()  
+    time.sleep(SHRT_SLEEP)
+    # driver = close_ads(driver) # close ads
+    # time.sleep(SHRT_SLEEP)
 
 
-        idx = 0
-        for X in XPTHS:
-            # try:
-            # if driver:
-            elem = driver.find_elements(By.XPATH, X) 
-            if elem:
-                for el in elem:
-                    string = el.text
-                    temp = re.findall(r'\d+', string)
-                    res = list(map(int, temp))
+    idx = 0
+    error_ct = 0
+    for X in XPTHS:
+        # try:
+        # if driver:
+        if idx <= len(XPTHS):
+            elem, driver = find_the_elements(xpath=X,driver=driver,sleep_seconds=1)
+        else:
+            break
+        print("test 1")
+        # elem = driver.find_elements(By.XPATH, X) 
+        if elem:
+            for el in elem:
+                string = el.text
+                temp = re.findall(r'\d+', string)
+                res = list(map(int, temp))
+                if idx != 5:
                     print(f"{grabbed[idx]}::",res[0])
-                    weather_dict[f'{grabbed[idx]}'] = [res]
-                idx += 1
-            else:
-                print("z")
-            
-
-        now = datetime.now()
-        formatted_date = now.strftime("%m_%d_%Y_%H_%M_%S")
-            
-        weather_dict['timestamp'] = formatted_date
-        weather_new = pd.DataFrame(data=weather_dict)
-        try:
-            weather_old = pd.read_csv("weather_data.csv")
-            weather_together = pd.concat([weather_old, weather_new], ignore_index=True)
-            weather_together.to_csv("weather_data.csv",index=False)
-        except:
-            weather_new.to_csv("weather_data.csv",index=False)   
-        time.sleep(SHRT_SLEEP)     
+                    weather_dict[f'{grabbed[idx]}'] = res
+                if idx == 5:
+                    print(f"{grabbed[idx]}::",res[0])
+                    weather_dict[f'{grabbed[idx]}'] = res[0]
+                time.sleep(SHRT_SLEEP)
+            idx += 1
+        else:
+            error_ct += 1
+    if error_ct > 0:
+        print("failed on grabbing weather data. sending zip to back of the line.")
+        return False    
+    print("test 4")
+    now = datetime.now()
+    formatted_date = now.strftime("%m_%d_%Y_%H_%M_%S")
         
+    weather_dict['timestamp'] = formatted_date
+    weather_new = pd.DataFrame(data=weather_dict)
+    print("test 6")
+    try:
+        weather_old = pd.read_csv("weather_data.csv")
+        weather_together = pd.concat([weather_old, weather_new], ignore_index=True)
+        weather_together.to_csv("weather_data.csv",index=False)
+        print("test 7")
+    except:
+        weather_new.to_csv("weather_data.csv",index=False)   
+        print("test 8")
+    time.sleep(SHRT_SLEEP)     
+    return True
+    
 if __name__ == "__main__":
-    # StartUpService()
-    # minutes_to_sleep = 15
-    # for i in range(3):
-        # print(i)
-    # driver = get_selenium_driver()
-    grab_weather_info()
-        # print(f"sleeping {minutes_to_sleep} minutes until next scrape")
-        # time.sleep(minutes_to_sleep * 60)
+    zip_list, driver = get_zipcodes()
+    keep_retrying(zip_list=zip_list,driver=driver)
