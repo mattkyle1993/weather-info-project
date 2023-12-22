@@ -246,26 +246,6 @@ def try_except_get(driver, url):
         print("ERROR::",Exception)
         return None
 
-# def close_ads(driver):
-#     """
-#     Source for this:
-#     https://stackoverflow.com/questions/41460265/hide-remove-ads-with-selenium-python
-#     """
-#     all_iframes = driver.find_elements(By.TAG_NAME,"iframe")
-#     if len(all_iframes) > 0:
-#         print("Ad Found\n")
-#         driver.execute_script("""
-#             var elems = document.getElementsByTagName("iframe"); 
-#             for(var i = 0, max = elems.length; i < max; i++)
-#                 {
-#                     elems[i].hidden=true;
-#                 }
-#                             """)
-#         print('Total Ads: ' + str(len(all_iframes)))
-#     else:
-#         print('No frames found')
-#     return driver
-
 def grab_weather_info(zip,driver):
 
     SHRT_SLEEP = 3
