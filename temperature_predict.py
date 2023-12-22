@@ -131,6 +131,7 @@ def find_the_elements(xpath,driver,elements = True,max_tries=3,sleep_seconds=0):
         except:
             if t < max_tries-1:
                 print("failed to load link. retrying...")
+                time.sleep(sleep_seconds)
             else:
                 print('giving up')
                 # quit()
@@ -159,62 +160,83 @@ def zco(x):
     return city if city else 'None'        
 
 def get_zipcodes(kc=False,top_num_zips = 0):
-    
-    xpaths = [
-        "/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a",
-        "/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
-    ]
     zip_urls = [
         "https://www.zip-codes.com/city/mo-kansas-city.asp",
         "https://247wallst.com/special-report/2019/06/26/the-most-populated-zip-codes-in-america/"
                 ]
-    
+
     if kc == True:
+        region = "kansas_city"
         zip_url = zip_urls[0]
         # xpath = xpaths[0]
         if top_num_zips == 0:
             NUM_ZIPS = 72
         else:
-            NUM_ZIPS = top_num_zips
+            NUM_ZIPS = top_num_zips + 1
     else:
+        region = "most_populated"
         zip_url = zip_urls[1]
         # xpath = xpaths[1]
         if top_num_zips == 0:
             NUM_ZIPS = 50
         else:
-            NUM_ZIPS = top_num_zips
+            NUM_ZIPS = top_num_zips + 1
     
-    driver = get_selenium_driver()
-    # driver.get(zip_url)
-    driver = try_except_get(driver,zip_url)
-    drivr = [driver]
-    for d in drivr:
-        if d == None:
-            break
-    driver.implicitly_wait(1) 
-    
-    zip_list = []
-    for i in range(NUM_ZIPS):
-        # print("i here", [i])
-        if i > 0:
-            if kc == False:
-                xpath= f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{i}]/td[2]"
-            else:
-                xpath = f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{i}]/td[1]/a"
-            # zip_count = i
-            # xpath = f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
-            xpath = xpath.format(zip_count=i)
-            # elem = driver.find_elements(By.XPATH, xpath) 
-            elem, driver = find_the_elements(xpath,driver,elements=True)
-            for el in elem:
-                string = el.text
-                temp = re.findall(r'\d+', string)
-                res = list(map(int, temp))
-                res = f"{res[0]}"
-                # print(res)
-                zip_list.append(res)        
-    # print(zip_list)
-    return zip_list, driver
+    if os.path.exists(f"zip_list_{region}.txt"):
+        driver = get_selenium_driver()
+        # driver.get(zip_url)
+        driver = try_except_get(driver,zip_url)
+        drivr = [driver]
+        for d in drivr:
+            if d == None:
+                break
+        driver.implicitly_wait(1) 
+        zip_list = []
+        with open(f"zip_list_{region}.txt","r") as file:
+            for f in file:
+                zip_list.append(f)
+        if len(zip_list) == top_num_zips:
+            return zip_list, driver
+        else:
+            build_list = True
+    else:
+        build_list = True
+    if build_list == True:
+        driver = get_selenium_driver()
+        # driver.get(zip_url)
+        driver = try_except_get(driver,zip_url)
+        drivr = [driver]
+        for d in drivr:
+            if d == None:
+                break
+        driver.implicitly_wait(1) 
+        
+        zip_list = []
+        for i in range(NUM_ZIPS):
+            # print("i here", [i])
+            if i > 0:
+                if kc == False:
+                    xpath= f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{i}]/td[2]"
+                else:
+                    xpath = f"/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{i}]/td[1]/a"
+                # zip_count = i
+                # xpath = f"/html/body/div[1]/div/section/div/div/div[1]/table/tbody/tr[{zip_count}]/td[2]"
+                xpath = xpath.format(zip_count=i)
+                # elem = driver.find_elements(By.XPATH, xpath) 
+                elem, driver = find_the_elements(xpath,driver,elements=True)
+                for el in elem:
+                    string = el.text
+                    temp = re.findall(r'\d+', string)
+                    res = list(map(int, temp))
+                    res = f"{res[0]}"
+                    # print(res)
+                    zip_list.append(res)        
+        # print(zip_list)
+        with open(f"zip_list_{region}.txt","w") as file:
+            for z in zip_list:
+                file.write(z)
+                file.write('\n')
+        return zip_list, driver
 
 def try_except_get(driver, url):
     try:
@@ -365,7 +387,7 @@ def grab_weather_info(zip,driver):
     time.sleep(SHRT_SLEEP)     
     return True
 
-def predict_model():
+def predict_model(max_depth = 5):
     
     data = pd.read_csv("weather_data.csv")
 
@@ -377,7 +399,7 @@ def predict_model():
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Create and train the Decision Tree model
-    model = DecisionTreeClassifier()
+    model = DecisionTreeClassifier(max_depth=max_depth)
     model.fit(X_train, y_train)
 
     # Make predictions on the test set
