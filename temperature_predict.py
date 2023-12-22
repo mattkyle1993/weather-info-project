@@ -243,7 +243,7 @@ def grab_weather_info(zip,driver):
     # kc_zips, driver = get_zipcodes()
     # ct = 0
     # for zip in kc_zips:
-    print("zip here::",zip)
+    # print("zip here::",zip)
     XPTHS = [
         "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[3]/div[2]", # wind speed
         "/html/body/div/div[7]/div[1]/div[1]/div[2]/div[3]/div[10]/div[2]", # cloud ceiling
@@ -271,7 +271,7 @@ def grab_weather_info(zip,driver):
     time.sleep(SHRT_SLEEP)
     search_element.click()
     time.sleep(LONG_SLEEP)
-    print("test 3")
+    # print("test 3")
     
     grabbed = [
         "wind_speed",
@@ -298,7 +298,7 @@ def grab_weather_info(zip,driver):
     weather_dict['city'] = [city_name]
     expand_details, driver = find_the_elements("/html/body/div[1]/div[7]/div[1]/div[1]/a[1]/div[2]/span[2]/span",driver,elements=False)
     
-    print("test 2")
+    # print("test 2")
     try:
         expand_details.click()
     except:
@@ -318,7 +318,7 @@ def grab_weather_info(zip,driver):
             elem, driver = find_the_elements(xpath=X,driver=driver,sleep_seconds=1)
         else:
             break
-        print("test 1")
+        # print("test 1")
         # elem = driver.find_elements(By.XPATH, X) 
         if elem:
             for el in elem:
@@ -336,23 +336,23 @@ def grab_weather_info(zip,driver):
         else:
             error_ct += 1
     if error_ct > 0:
-        print("failed on grabbing weather data. sending zip to back of the line.")
+        # print("failed on grabbing weather data. sending zip to back of the line.")
         return False    
-    print("test 4")
+    # print("test 4")
     now = datetime.now()
     formatted_date = now.strftime("%m_%d_%Y_%H_%M_%S")
         
     weather_dict['timestamp'] = formatted_date
     weather_new = pd.DataFrame(data=weather_dict)
-    print("test 6")
+    # print("test 6")
     try:
         weather_old = pd.read_csv("weather_data.csv")
         weather_together = pd.concat([weather_old, weather_new], ignore_index=True)
         weather_together.to_csv("weather_data.csv",index=False)
-        print("test 7")
+        # print("test 7")
     except:
         weather_new.to_csv("weather_data.csv",index=False)   
-        print("test 8")
+        # print("test 8")
     time.sleep(SHRT_SLEEP)     
     return True
     
