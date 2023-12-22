@@ -391,25 +391,18 @@ def predict_model(max_depth = 5):
     
     data = pd.read_csv("weather_data.csv")
 
-    # Split data into features and target
     X = data.drop(['temperature_in_F',"zipcode","city","timestamp"], axis=1)  # Replace 'target_column' with the actual target column name
     y = data['temperature_in_F']
 
-    # Split data into training and testing sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Create and train the Decision Tree model
     model = DecisionTreeClassifier(max_depth=max_depth)
     model.fit(X_train, y_train)
 
-    # Make predictions on the test set
     y_pred = model.predict(X_test)
-
-    # Evaluate the model
     accuracy = accuracy_score(y_test, y_pred)
     print(f'Accuracy: {accuracy:.2f}')
 
-    # Get a list of the most important features
     feature_importances = model.feature_importances_
     feature_names = X.columns
     important_features = sorted(zip(feature_names, feature_importances), key=lambda x: x[1], reverse=True)
@@ -417,10 +410,8 @@ def predict_model(max_depth = 5):
     for feature, importance in important_features:
         print(f'{feature}: {importance:.4f}')
 
-    # Create a timestamp for the output CSV file
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-
-    # Write the important features to a CSV file
+    
     output_filename = f'important_features_{timestamp}.csv'
     important_features_df = pd.DataFrame(important_features, columns=['Feature', 'Importance'])
     important_features_df.to_csv(output_filename, index=False)
