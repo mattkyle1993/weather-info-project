@@ -12,6 +12,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
 from datetime import datetime
 import time
 from fuzzywuzzy import fuzz, process
@@ -155,7 +158,7 @@ def zco(x):
     city = search.by_zipcode(x).major_city
     return city if city else 'None'        
 
-def get_zipcodes(kc=False,):
+def get_zipcodes(kc=False,top_num_zips = 0):
     
     xpaths = [
         "/html/body/table/tbody/tr/td[2]/div/div[7]/table/tbody/tr[{zip_count}]/td[1]/a",
@@ -169,11 +172,17 @@ def get_zipcodes(kc=False,):
     if kc == True:
         zip_url = zip_urls[0]
         # xpath = xpaths[0]
-        NUM_ZIPS = 72
+        if top_num_zips == 0:
+            NUM_ZIPS = 72
+        else:
+            NUM_ZIPS = top_num_zips
     else:
         zip_url = zip_urls[1]
         # xpath = xpaths[1]
-        NUM_ZIPS = 50
+        if top_num_zips == 0:
+            NUM_ZIPS = 50
+        else:
+            NUM_ZIPS = top_num_zips
     
     driver = get_selenium_driver()
     # driver.get(zip_url)
@@ -355,7 +364,48 @@ def grab_weather_info(zip,driver):
         # print("test 8")
     time.sleep(SHRT_SLEEP)     
     return True
+
+def predict_model():
+    
+    data = pd.read_csv("weather_data.csv")
+
+    # Split data into features and target
+    X = data.drop(['temperature_in_F',"zipcode","city","timestamp"], axis=1)  # Replace 'target_column' with the actual target column name
+    y = data['temperature_in_F']
+
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Create and train the Decision Tree model
+    model = DecisionTreeClassifier()
+    model.fit(X_train, y_train)
+
+    # Make predictions on the test set
+    y_pred = model.predict(X_test)
+
+    # Evaluate the model
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f'Accuracy: {accuracy:.2f}')
+
+    # Get a list of the most important features
+    feature_importances = model.feature_importances_
+    feature_names = X.columns
+    important_features = sorted(zip(feature_names, feature_importances), key=lambda x: x[1], reverse=True)
+    print('Most important features:')
+    for feature, importance in important_features:
+        print(f'{feature}: {importance:.4f}')
+
+    # Create a timestamp for the output CSV file
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+    # Write the important features to a CSV file
+    output_filename = f'important_features_{timestamp}.csv'
+    important_features_df = pd.DataFrame(important_features, columns=['Feature', 'Importance'])
+    important_features_df.to_csv(output_filename, index=False)
+
+    print(f'Important features saved to {output_filename}')
     
 if __name__ == "__main__":
-    zip_list, driver = get_zipcodes()
+    zip_list, driver = get_zipcodes(top_num_zips=15)
     keep_retrying(zip_list=zip_list,driver=driver)
+    predict_model()
